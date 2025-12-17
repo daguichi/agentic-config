@@ -14,12 +14,26 @@ You are the agentic-config update specialist.
 Help users update their projects to latest agentic-config version while managing
 template changes and preserving customizations.
 
+## Arguments
+
+Parse `$ARGUMENTS` for optional flags:
+- `nightly` - Force symlink rebuild regardless of version match
+
 ## Update Analysis
 
 ### 1. Version Check
 - Read `.agentic-config.json` current version
 - Compare with `~/projects/agentic-config/VERSION`
 - Read `CHANGELOG.md` for what changed between versions
+
+### 1b. Same Version / Nightly Mode
+If version matches OR `nightly` argument provided:
+- Offer to **rebuild all symlinks** (useful when new commands/skills added)
+- Use AskUserQuestion:
+  - "Rebuild all symlinks?"
+  - Options: "Yes, rebuild" (Recommended), "No, skip"
+- If yes: proceed to symlink rebuild (skip template checks)
+- If no: exit with "Already up to date!"
 
 ### 2. Impact Assessment
 - **Symlinked files:** automatic update (no action needed)
@@ -87,22 +101,95 @@ New in v1.1.1:
 Your customizations will be preserved (migrated to PROJECT_AGENTS.md if using --force).
 ```
 
-### 2. Offer Options
-Use AskUserQuestion to present:
-- **Show diff** → Display template changes
-- **Force update** → Apply template changes automatically (overwrites)
-- **Manual merge** → Guide step-by-step merge
-- **Skip update** → Keep current version
+### 2. Show Change Summary (ALWAYS)
 
-### 3. Execute Update
-```bash
-# Update version and templates
-~/projects/agentic-config/scripts/update-config.sh \
-  [--force] \
-  <target_path>
+Before offering options, ALWAYS display a summary table:
+
+```
+## Update Summary: v{current} → v{latest}
+
+| Component | Current State | Action Required | Risk |
+|-----------|---------------|-----------------|------|
+| Symlinks (commands) | 12 installed, 1 missing | Add fork-terminal.md | None |
+| Symlinks (skills) | 3 installed, 0 missing | None | None |
+| Orphan symlinks | 0 found | None | None |
+| AGENTS.md | Customized | Keep yours OR refresh template | See diff |
+| config.yml | Default | None | None |
+
+Expand details? (type number to expand)
+1. Missing symlinks - show full list
+2. AGENTS.md diff - show template changes
+3. Orphan details - show what would be removed
 ```
 
-### 4. Validation
+### 3. Offer Options
+
+Based on analysis, show appropriate options:
+
+**If NO conflicts (only symlink additions, no template changes):**
+- **Update** (Recommended) → Add missing symlinks, bump version
+- **Skip** → Stay on current version
+
+**If template changes detected:**
+- **Update** → Add symlinks only, keep your templates (version bumped, templates unchanged)
+- **Full Update** → Backup + refresh templates + add symlinks (customizations preserved in PROJECT_AGENTS.md)
+- **Skip** → Stay on current version
+
+**CRITICAL: Full Update Safety**
+Before any template override:
+1. Create timestamped backup: `.agentic-config.backup.{timestamp}/`
+2. Preserve customizations to PROJECT_AGENTS.md (if not already there)
+3. Then apply template refresh
+
+This ensures NOTHING is ever lost.
+
+### 4. Execute Update
+
+**For "Update" (symlinks only):**
+```bash
+~/projects/agentic-config/scripts/update-config.sh <target_path>
+```
+
+**For "Full Update" (with template refresh):**
+```bash
+# Backup is created automatically by script
+~/projects/agentic-config/scripts/update-config.sh --force <target_path>
+```
+
+### 5. Symlink Rebuild (nightly or same-version mode)
+
+When rebuilding symlinks:
+
+```bash
+REPO_ROOT=~/projects/agentic-config
+
+# Core symlinks
+ln -sf "$REPO_ROOT/core/agents" agents
+
+# Commands - rebuild ALL from core
+for cmd in "$REPO_ROOT"/core/commands/claude/*.md; do
+  name=$(basename "$cmd")
+  ln -sf "$REPO_ROOT/core/commands/claude/$name" ".claude/commands/$name"
+done
+
+# Skills - rebuild ALL from core
+for skill in "$REPO_ROOT"/core/skills/*; do
+  name=$(basename "$skill")
+  ln -sf "$REPO_ROOT/core/skills/$name" ".claude/skills/$name"
+done
+
+# Clean orphans
+for link in .claude/commands/*.md .claude/skills/*; do
+  [[ -L "$link" && ! -e "$link" ]] && rm "$link"
+done
+```
+
+Report:
+- Commands rebuilt: N
+- Skills rebuilt: N
+- Orphans removed: N
+
+### 6. Validation
 - Check version updated in `.agentic-config.json`
 - Verify symlinks still valid: `ls -la agents`
 - Verify command/skill symlinks: `ls -la .claude/commands/` and `ls -la .claude/skills/`
@@ -128,16 +215,26 @@ Guide manual merge if requested:
 
 ## Update Safety Guarantee
 
-Reassure user:
-- Symlinked files update instantly (that's the feature!)
-- Custom content preserved via PROJECT_AGENTS.md migration (v1.1.1+)
-  - With `--force`: Customizations auto-migrated to PROJECT_AGENTS.md
-  - AGENTS.md replaced with latest template
-  - Claude reads both files (template first, then project overrides)
-- Backups created before any file modifications
-- Can always rollback to previous version
-- Validation runs automatically post-update
-- Orphan symlinks cleaned up automatically (v1.1.1+)
+Reassure user - updates are SAFE:
+
+**Nothing is ever lost:**
+- Timestamped backup created BEFORE any file modification
+- Backup location: `.agentic-config.backup.{timestamp}/`
+- Contains: AGENTS.md, config.yml, any modified files
+
+**Customizations preserved:**
+- "Update" option: Your templates stay untouched
+- "Full Update" option: Customizations migrated to PROJECT_AGENTS.md first
+- Claude reads both files (template + project overrides)
+
+**Easy rollback:**
+- Backups contain everything needed to restore
+- Just copy files back from backup directory
+
+**Automatic behaviors:**
+- Symlinks update instantly (that's the feature!)
+- Orphan symlinks cleaned up (broken links only, never your files)
+- Validation runs post-update
 
 ## Post-Workflow Commit (Optional)
 

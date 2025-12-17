@@ -4,6 +4,25 @@ All notable changes to agentic-config.
 
 ## [Unreleased]
 
+## [0.1.4] - 2025-12-16
+
+### Added
+- `/o_spec` workflow modifiers: `full` (default), `normal`, `lean`, `leanest` for speed/quality tradeoffs
+- `/o_spec` step skipping with `--skip=STEP1,STEP2` flag
+- `/fork-terminal` command for opening new kitty terminal sessions with optional prime prompt
+- `/agentic update nightly` option to rebuild all symlinks even when version matches
+- `/milestone` Phase 0.7 and Phase 4.5 for PROJECT_AGENTS.md rules enforcement on release changes
+- PROJECT_AGENTS.md symlink relative paths enforcement rule
+
+### Fixed
+- `/o_spec` missing YAML frontmatter (description, argument-hint, project-agnostic)
+
+### Changed
+- `/agentic update` now shows change summary table before options
+- Renamed "Force update" to "Full Update" (less aggressive language)
+- Added safe "Update" option for symlink-only updates when no template conflicts
+- Improved safety messaging with explicit backup guarantees
+
 ## [0.1.3] - 2025-12-16
 
 ### Added
