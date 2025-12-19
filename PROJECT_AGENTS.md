@@ -7,6 +7,7 @@ Project overrides for agentic-config repository.
 - DO NOT use emojis in markdown files
 - ALWAYS ensure every git-tracked asset is project-agnostic and anonymous
 - All documentation and code must be anonymized (no personal names, emails, or identifiable information)
+- CRITICAL: NEVER add `outputs/` content to git - this directory is gitignored for a reason
 
 ## Symlinks
 
