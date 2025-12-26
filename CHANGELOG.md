@@ -4,6 +4,8 @@ All notable changes to agentic-config.
 
 ## [Unreleased]
 
+## [0.1.14] - 2025-12-26
+
 ### Added
 
 - `install.sh` - curl-installable script for single-command global installation
