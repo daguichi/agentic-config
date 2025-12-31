@@ -342,6 +342,650 @@ path="${path/$PROJECT_ROOT/<project>}"
 
 ## Plan
 
+### Files
+
+- `core/commands/claude/issue.md` (NEW)
+  - YAML frontmatter: description, argument-hint, project-agnostic: true, allowed-tools
+  - Step 1: Authentication verification (gh auth status)
+  - Step 2: Input mode detection (explicit vs context)
+  - Step 3: Context extraction logic (if no args)
+  - Step 4: Environment metadata collection
+  - Step 5: Issue preview and confirmation gate
+  - Step 6: gh issue create execution
+  - Step 7: Results reporting
+
+- `tests/e2e/test_issue_command.sh` (NEW)
+  - Test: gh auth verification behavior
+  - Test: File structure validation
+  - Test: Command existence and metadata
+
+### Tasks
+
+#### Task 1 - Create core/commands/claude/issue.md
+
+**Tools**: Write
+
+**Description**: Create the main `/issue` command file with complete implementation following pull_request.md patterns.
+
+**File**: `core/commands/claude/issue.md`
+
+**Content**:
+````diff
+--- /dev/null
++++ b/core/commands/claude/issue.md
+@@ -0,0 +1,340 @@
++---
++description: Report issues to agentic-config repository via GitHub CLI
++argument-hint: "[title] [description] | --bug | --feature"
++project-agnostic: true
++allowed-tools:
++  - Bash
++  - Read
++---
++
++# Issue Reporter
++
++Creates GitHub issues in the central agentic-config repository (MatiasComercio/agentic-config) for bug reports and feature requests.
++
++## Usage
++```
++/issue                           # Context-based: extract from conversation
++/issue "Title" "Description"     # Explicit: user provides details
++/issue --bug "Title"             # Bug report with template
++/issue --feature "Title"         # Feature request with template
++```
++
++**Target Repository**: `MatiasComercio/agentic-config`
++
++---
++
++## Workflow Steps
++
++### Step 1: Authentication Verification (CRITICAL - DO FIRST)
++
++**INSTRUCTION**: Verify GitHub CLI authentication before any other operation.
++
++```bash
++echo "Checking GitHub CLI authentication..."
++GH_AUTH_OUTPUT=$(gh auth status 2>&1)
++GH_AUTH_STATUS=$?
++
++if [ $GH_AUTH_STATUS -ne 0 ]; then
++  echo "ERROR: GitHub CLI not authenticated"
++  echo ""
++  echo "$GH_AUTH_OUTPUT"
++  echo ""
++  echo "Please authenticate with: gh auth login"
++  exit 1
++fi
++
++echo "$GH_AUTH_OUTPUT"
++echo ""
++echo "Authentication verified."
++```
++
++**Validation Logic**:
++1. Run `gh auth status` and capture exit code
++2. **If exit code != 0**: STOP immediately with error and `gh auth login` instruction
++3. **If authenticated**: Continue with success message
++
++---
++
++### Step 2: Input Mode Detection
++
++**INSTRUCTION**: Parse arguments to determine input mode.
++
++**Arguments**: `$ARGUMENTS`
++
++**Mode Detection Logic**:
++
++| Input Pattern | Mode | Action |
++|---------------|------|--------|
++| Empty/no args | Context Mode | Extract from recent conversation |
++| `--bug "Title"` | Bug Template | Use bug report template with provided title |
++| `--feature "Title"` | Feature Template | Use feature request template with provided title |
++| `"Title" "Description"` | Explicit Mode | Use provided title and description |
++| `"Title"` only | Explicit Mode | Use title, prompt for description |
++
++**Parsing Examples**:
++```
++$ARGUMENTS = ""                          -> Context Mode
++$ARGUMENTS = "--bug \"Auth fails\""      -> Bug Template, title="Auth fails"
++$ARGUMENTS = "--feature \"Add X\""       -> Feature Template, title="Add X"
++$ARGUMENTS = "\"Title\" \"Body text\""   -> Explicit, title="Title", body="Body text"
++```
++
++---
++
++### Step 3: Context Extraction (If Context Mode)
++
++**INSTRUCTION**: If no arguments provided, analyze recent conversation for issue details.
++
++**Context Extraction Heuristics**:
++1. Search recent messages for error patterns:
++   - `Error:`, `ERROR:`, `Exception:`, `failed`, `unexpected`
++   - Stack traces: Lines with `at `, `File "`, traceback patterns
++   - Command failures: `exit code`, `returned non-zero`
++
++2. Extract reproduction context:
++   - "I tried...", "When I...", "After running..."
++   - Command sequences that led to the issue
++
++3. Identify expected vs actual behavior:
++   - "Expected...", "but got...", "instead of..."
++
++**If Context Found**:
++- Generate title: Summarize error/issue in <60 chars
++- Generate description: Include error messages, context, steps observed
++
++**If No Context Found**:
++- STOP and prompt user:
++  ```
++  No issue context detected in recent conversation.
++
++  Please provide issue details:
++  /issue "Title" "Description"
++
++  Or specify type:
++  /issue --bug "Brief description of the bug"
++  /issue --feature "Brief description of the feature"
++  ```
++
++---
++
++### Step 4: Environment Metadata Collection
++
++**INSTRUCTION**: Gather safe environment information for issue context.
++
++```bash
++# Collect environment info (sanitized)
++ENV_OS=$(uname -s 2>/dev/null || echo "Unknown")
++ENV_OS_VERSION=$(uname -r 2>/dev/null || echo "Unknown")
++ENV_SHELL=$(basename "$SHELL" 2>/dev/null || echo "Unknown")
++ENV_GIT_VERSION=$(git --version 2>/dev/null | cut -d' ' -f3 || echo "Unknown")
++ENV_BRANCH=$(git branch --show-current 2>/dev/null || echo "N/A")
++
++# Get agentic-config version
++_agp=""
++[[ -f ~/.agents/.path ]] && _agp=$(<~/.agents/.path)
++AGENTIC_GLOBAL="${AGENTIC_CONFIG_PATH:-${_agp:-$HOME/.agents/agentic-config}}"
++unset _agp
++
++if [ -d "$AGENTIC_GLOBAL" ]; then
++  ENV_AGENTIC_VERSION=$(git -C "$AGENTIC_GLOBAL" describe --tags --always 2>/dev/null || echo "Unknown")
++else
++  ENV_AGENTIC_VERSION="Unknown"
++fi
++
++echo "Environment collected:"
++echo "  OS: $ENV_OS $ENV_OS_VERSION"
++echo "  Shell: $ENV_SHELL"
++echo "  Git: $ENV_GIT_VERSION"
++echo "  Branch: $ENV_BRANCH"
++echo "  agentic-config: $ENV_AGENTIC_VERSION"
++```
++
++**Information to EXCLUDE (Privacy/Security)**:
++- Absolute paths containing usernames (sanitize with `~`)
++- API keys or tokens (patterns: `ghp_`, `sk-`, `AKIA`, 32+ char alphanumeric)
++- Email addresses
++- Private repository names
++- Contents of `.env` files
++
++---
++
++### Step 5: Sanitization
++
++**INSTRUCTION**: Sanitize any user-provided or extracted content before including in issue.
++
++**Sanitization Rules**:
++
++1. **Path Anonymization**:
++   ```bash
++   # Replace home directory with ~
++   sanitized="${content//$HOME/\~}"
++
++   # Replace common user path patterns
++   sanitized=$(echo "$sanitized" | sed -E 's|/Users/[^/]+|~|g; s|/home/[^/]+|~|g')
++   ```
++
++2. **Secret Detection**:
++   - Check for API key patterns: `[A-Za-z0-9_-]{32,}`
++   - Check for token prefixes: `ghp_`, `gho_`, `sk-`, `AKIA`, `Bearer `
++   - If detected: Replace with `[REDACTED]` and warn user
++
++3. **Warning on Detection**:
++   ```
++   WARNING: Potential sensitive data detected and redacted.
++   Please review the preview carefully before submitting.
++   ```
++
++---
++
++### Step 6: Issue Body Formatting
++
++**INSTRUCTION**: Format the issue body with structured sections.
++
++**Bug Report Template** (when `--bug` flag used):
++```markdown
++## Bug Description
++<user-provided or context-extracted description>
++
++## Environment
++- OS: <ENV_OS> <ENV_OS_VERSION>
++- Shell: <ENV_SHELL>
++- Git: <ENV_GIT_VERSION>
++- agentic-config: <ENV_AGENTIC_VERSION>
++
++## Steps to Reproduce
++<if available from context, otherwise "Not provided">
++
++## Expected Behavior
++<if available>
++
++## Actual Behavior
++<error messages, stack traces from context>
++
++---
++Reported via `/issue` command
++```
++
++**Feature Request Template** (when `--feature` flag used):
++```markdown
++## Feature Description
++<user-provided description>
++
++## Use Case
++<why this feature would be useful>
++
++## Proposed Solution
++<if user provided suggestions>
++
++## Environment
++- agentic-config: <ENV_AGENTIC_VERSION>
++
++---
++Reported via `/issue` command
++```
++
++**General Template** (explicit or context mode):
++```markdown
++## Description
++<user-provided or context-extracted description>
++
++## Environment
++- OS: <ENV_OS> <ENV_OS_VERSION>
++- Shell: <ENV_SHELL>
++- Git: <ENV_GIT_VERSION>
++- agentic-config: <ENV_AGENTIC_VERSION>
++
++## Context
++<relevant error messages, stack traces, or unexpected behavior if available>
++
++## Additional Information
++<any other relevant details>
++
++---
++Reported via `/issue` command
++```
++
++---
++
++### Step 7: Issue Preview and Confirmation
++
++**INSTRUCTION**: Display formatted issue preview and wait for user confirmation.
++
++**Display Format**:
++```
++╔══════════════════════════════════════════════════════════════════╗
++║                        ISSUE PREVIEW                             ║
++╠══════════════════════════════════════════════════════════════════╣
++║ Repository: MatiasComercio/agentic-config                        ║
++║ Title: <TITLE>                                                   ║
++║ Labels: <bug | enhancement | none>                               ║
++╚══════════════════════════════════════════════════════════════════╝
++
++Body:
++────────────────────────────────────────────────────────────────────
++<FORMATTED_BODY>
++────────────────────────────────────────────────────────────────────
++
++Create this issue? (yes/no/edit)
++- yes: Create the issue as shown
++- no: Cancel issue creation
++- edit: Provide modified title or description
++```
++
++**Confirmation Logic**:
++- Wait for explicit `yes` before proceeding
++- If `no`: Exit gracefully with "Issue creation cancelled"
++- If `edit`: Prompt for new title/description and re-preview
++
++---
++
++### Step 8: Create Issue
++
++**INSTRUCTION**: Execute gh CLI to create the issue.
++
++```bash
++# Determine label based on mode
++LABEL_FLAG=""
++if [ "$MODE" = "bug" ]; then
++  LABEL_FLAG="--label bug"
++elif [ "$MODE" = "feature" ]; then
++  LABEL_FLAG="--label enhancement"
++fi
++
++# Create issue with HEREDOC for body
++ISSUE_URL=$(gh issue create \
++  --repo MatiasComercio/agentic-config \
++  --title "$ISSUE_TITLE" \
++  $LABEL_FLAG \
++  --body "$(cat <<'EOF'
++<FORMATTED_BODY>
++EOF
++)" 2>&1)
++
++CREATE_STATUS=$?
++
++if [ $CREATE_STATUS -ne 0 ]; then
++  echo "ERROR: Failed to create issue"
++  echo "$ISSUE_URL"
++  echo ""
++  echo "You can try creating the issue manually at:"
++  echo "https://github.com/MatiasComercio/agentic-config/issues/new"
++  exit 1
++fi
++
++echo "$ISSUE_URL"
++```
++
++---
++
++### Step 9: Report Results
++
++**INSTRUCTION**: Display success message with issue URL and next steps.
++
++```
++════════════════════════════════════════════════════════════════════
++ISSUE CREATED SUCCESSFULLY
++════════════════════════════════════════════════════════════════════
++
++Issue URL: <ISSUE_URL>
++Title: <ISSUE_TITLE>
++Repository: MatiasComercio/agentic-config
++
++Next Steps:
++1. View issue: <ISSUE_URL>
++2. Add more context if needed via GitHub web interface
++3. Monitor for maintainer response
++
++Thank you for contributing to agentic-config!
++════════════════════════════════════════════════════════════════════
++```
++
++---
++
++## Error Handling
++
++| Error | Detection | Response |
++|-------|-----------|----------|
++| gh not installed | `command -v gh` fails | "GitHub CLI not found. Install: https://cli.github.com/" |
++| Not authenticated | `gh auth status` exit != 0 | "Please authenticate: gh auth login" |
++| No context found | Context extraction returns empty | Prompt for explicit input |
++| Network error | `gh issue create` fails | Show error, suggest manual creation |
++| Rate limited | gh returns rate limit error | "GitHub API rate limited. Try again later." |
++
++---
++
++## Security Considerations
++
++1. **Path Sanitization**: All paths anonymized before inclusion
++2. **Secret Detection**: Scan for API keys, tokens before submission
++3. **No .env Content**: Never include environment file contents
++4. **User Confirmation**: Always preview before creating
++5. **Read-Only Default**: No modifications to local files
++
++---
++
++## Design Decisions
++
++1. **Central Repository Target**
++   - All issues go to `MatiasComercio/agentic-config`
++   - Ensures consolidated issue tracking for the project
++
++2. **Dual Input Mode**
++   - Context extraction for seamless error reporting
++   - Explicit mode for planned feature requests
++
++3. **Mandatory Preview**
++   - Always show preview before creating
++   - Prevents accidental sensitive data exposure
++
++4. **Minimal Tool Requirements**
++   - Only needs Bash and Read (no Write)
++   - gh CLI handles all GitHub interaction
++
++5. **Project-Agnostic Design**
++   - Works from any agentic-config installation
++   - Uses AGENTIC_GLOBAL resolution pattern
+````
+
+**Verification**:
+- File exists at `core/commands/claude/issue.md`
+- YAML frontmatter is valid (description, argument-hint, project-agnostic, allowed-tools)
+- Contains all 9 workflow steps
+- Uses HEREDOC pattern for gh issue create (matches pull_request.md)
+
+---
+
+#### Task 2 - Create tests/e2e/test_issue_command.sh
+
+**Tools**: Write
+
+**Description**: Create E2E test file validating command structure, file existence, and YAML frontmatter.
+
+**File**: `tests/e2e/test_issue_command.sh`
+
+**Content**:
+````diff
+--- /dev/null
++++ b/tests/e2e/test_issue_command.sh
+@@ -0,0 +1,118 @@
++#!/usr/bin/env bash
++# E2E Tests for /issue command
++set -euo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
++
++# Source utilities
++source "$SCRIPT_DIR/test_utils.sh"
++
++# Test: Command file exists
++test_issue_command_exists() {
++  echo "=== test_issue_command_exists ==="
++
++  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
++
++  assert_file_exists "$cmd_file" "issue.md command file exists"
++}
++
++# Test: YAML frontmatter is valid
++test_issue_frontmatter_valid() {
++  echo "=== test_issue_frontmatter_valid ==="
++
++  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
++
++  # Check for required frontmatter fields
++  assert_file_contains "$cmd_file" "^---$" "Has YAML frontmatter delimiter"
++  assert_file_contains "$cmd_file" "description:" "Has description field"
++  assert_file_contains "$cmd_file" "argument-hint:" "Has argument-hint field"
++  assert_file_contains "$cmd_file" "project-agnostic: true" "Is project-agnostic"
++  assert_file_contains "$cmd_file" "allowed-tools:" "Has allowed-tools field"
++  assert_file_contains "$cmd_file" "- Bash" "Allows Bash tool"
++}
++
++# Test: Command targets correct repository
++test_issue_target_repo() {
++  echo "=== test_issue_target_repo ==="
++
++  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
++
++  assert_file_contains "$cmd_file" "MatiasComercio/agentic-config" "Targets correct repository"
++  assert_file_contains "$cmd_file" "gh issue create" "Uses gh issue create"
++}
++
++# Test: Command has authentication verification
++test_issue_auth_verification() {
++  echo "=== test_issue_auth_verification ==="
++
++  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
++
++  assert_file_contains "$cmd_file" "gh auth status" "Checks gh auth status"
++  assert_file_contains "$cmd_file" "gh auth login" "Provides auth login instruction"
++}
++
++# Test: Command has preview/confirmation step
++test_issue_preview_confirmation() {
++  echo "=== test_issue_preview_confirmation ==="
++
++  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
++
++  assert_file_contains "$cmd_file" "ISSUE PREVIEW" "Has issue preview section"
++  assert_file_contains "$cmd_file" "yes/no" "Has confirmation prompt"
++}
++
++# Test: Command has sanitization logic
++test_issue_sanitization() {
++  echo "=== test_issue_sanitization ==="
++
++  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
++
++  assert_file_contains "$cmd_file" "Sanitization" "Has sanitization section"
++  assert_file_contains "$cmd_file" "REDACTED" "Has redaction logic"
++  assert_file_contains "$cmd_file" "ghp_" "Detects GitHub token patterns"
++}
++
++# Test: Command supports multiple input modes
++test_issue_input_modes() {
++  echo "=== test_issue_input_modes ==="
++
++  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
++
++  assert_file_contains "$cmd_file" "\-\-bug" "Supports --bug flag"
++  assert_file_contains "$cmd_file" "\-\-feature" "Supports --feature flag"
++  assert_file_contains "$cmd_file" "Context Mode" "Supports context mode"
++  assert_file_contains "$cmd_file" "Explicit Mode" "Supports explicit mode"
++}
++
++# Test: Command collects environment metadata
++test_issue_environment_collection() {
++  echo "=== test_issue_environment_collection ==="
++
++  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
++
++  assert_file_contains "$cmd_file" "uname -s" "Collects OS info"
++  assert_file_contains "$cmd_file" "git --version" "Collects git version"
++  assert_file_contains "$cmd_file" "AGENTIC_GLOBAL" "References agentic-config path"
++}
++
++# Test: Command has error handling
++test_issue_error_handling() {
++  echo "=== test_issue_error_handling ==="
++
++  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
++
++  assert_file_contains "$cmd_file" "Error Handling" "Has error handling section"
++  assert_file_contains "$cmd_file" "gh not installed" "Handles missing gh CLI"
++  assert_file_contains "$cmd_file" "Network error" "Handles network errors"
++}
++
++# Run all tests
++test_issue_command_exists
++test_issue_frontmatter_valid
++test_issue_target_repo
++test_issue_auth_verification
++test_issue_preview_confirmation
++test_issue_sanitization
++test_issue_input_modes
++test_issue_environment_collection
++test_issue_error_handling
++
++print_test_summary "/issue Command E2E Tests"
+````
+
+**Verification**:
+- File exists at `tests/e2e/test_issue_command.sh`
+- File is executable: `chmod +x tests/e2e/test_issue_command.sh`
+- Tests pass when run: `./tests/e2e/test_issue_command.sh`
+
+---
+
+#### Task 3 - Run E2E Tests
+
+**Tools**: Bash
+
+**Description**: Execute the E2E test file to validate Task 1 implementation.
+
+**Commands**:
+```bash
+chmod +x "$REPO_ROOT/tests/e2e/test_issue_command.sh"
+"$REPO_ROOT/tests/e2e/test_issue_command.sh"
+```
+
+**Expected Output**: All tests pass (PASS count > 0, FAIL count = 0)
+
+---
+
+#### Task 4 - Commit Changes
+
+**Tools**: Bash
+
+**Description**: Stage and commit the new files with proper spec commit message.
+
+**Commands**:
+```bash
+# Stage files
+git -C "$REPO_ROOT" add core/commands/claude/issue.md tests/e2e/test_issue_command.sh
+
+# Verify not on main
+BRANCH=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+  echo "ERROR: Cannot commit on protected branch: $BRANCH"
+  exit 1
+fi
+
+# Commit with spec message format
+git -C "$REPO_ROOT" commit -m "spec(003): IMPLEMENT - issue-command"
+```
+
+**Verification**:
+- `git status` shows clean working tree after commit
+- `git log -1 --oneline` shows commit with message `spec(003): IMPLEMENT - issue-command`
+
+---
+
+### Validate
+
+| Requirement | Compliance | Spec Line |
+|-------------|------------|-----------|
+| CREATE `core/commands/claude/issue.md` command file with proper YAML frontmatter | Task 1 creates file with YAML frontmatter (description, argument-hint, project-agnostic, allowed-tools) | L10 |
+| IMPLEMENT gh CLI integration for issue creation targeting the central repository | Task 1 Step 8 uses `gh issue create --repo MatiasComercio/agentic-config` | L11, L23-24 |
+| SUPPORT context-based input mode | Task 1 Step 3 implements context extraction with error pattern heuristics | L13-14 |
+| SUPPORT explicit input mode | Task 1 Step 2 parses `"Title" "Description"` arguments | L15 |
+| VALIDATE gh CLI authentication before issue creation | Task 1 Step 1 runs `gh auth status` and stops on failure | L57 |
+| FORMAT issue body with structured sections | Task 1 Step 6 provides Bug, Feature, and General templates with Description, Environment, Context sections | L34-54, L16 |
+| INCLUDE automatic environment metadata | Task 1 Step 4 collects OS, shell, git version, branch, agentic-config version | L39-44, L17 |
+| ENSURE project-agnostic design | YAML frontmatter has `project-agnostic: true`, uses AGENTIC_GLOBAL resolution | L18 |
+| Issues MUST be created at MatiasComercio/agentic-config | Task 1 Step 8 hardcodes `--repo MatiasComercio/agentic-config` | L23-24 |
+| MUST validate gh auth status before creating issue | Task 1 Step 1 is marked CRITICAL - DO FIRST | L57 |
+| MUST NOT expose sensitive information | Task 1 Step 5 implements path sanitization, secret detection, and redaction | L58 |
+| SHOULD sanitize paths | Task 1 Step 5 replaces $HOME and user path patterns | L59 |
+| MUST handle no context gracefully | Task 1 Step 3 prompts user for explicit input when no context found | L60 |
+| MUST confirm with user before creating issue | Task 1 Step 7 displays preview and requires yes/no/edit confirmation | L61 |
+| Follow established patterns | Task 1 follows pull_request.md patterns (auth-first, HEREDOC body, step structure) | L64, L68-69 |
+
 ## Plan Review
 
 ## Implement
