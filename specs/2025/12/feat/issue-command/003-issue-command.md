@@ -1035,6 +1035,28 @@ bash tests/e2e/test_issue_command.sh
 
 ## Updated Doc
 
+### Files Updated
+
+**CHANGELOG.md**
+- Added `/issue` command entry to `[Unreleased]` > `Added` section
+- Documented context-based and explicit modes
+- Documented bug/feature templates with flags
+- Documented environment metadata collection
+- Documented path sanitization and secret detection
+- Documented mandatory preview/confirmation flow
+- Documented target repository (MatiasComercio/agentic-config)
+
+**.claude/commands/issue.md (symlink)**
+- Created relative symlink: `../../core/commands/claude/issue.md`
+- Command now available as `/issue` in Claude Code
+
+### Changes Made
+
+- CHANGELOG entry follows existing format (bullet list with sub-bullets for features)
+- Entry added to `[Unreleased]` section as per PROJECT_AGENTS.md guidelines
+- Symlink created with relative path per PROJECT_AGENTS.md requirements
+- No other documentation required (command is self-documenting via YAML frontmatter and inline docs)
+
 ## Post-Implement Review
 
 ### Review Summary
