@@ -6,6 +6,14 @@ All notable changes to agentic-config.
 
 ### Added
 
+- `/issue` command for reporting issues to agentic-config repository via GitHub CLI
+  - Context-based mode extracts issue details from conversation (errors, stack traces, unexpected behavior)
+  - Explicit mode accepts user-provided title and description
+  - Bug and feature templates with `--bug` and `--feature` flags
+  - Automatic environment metadata collection (OS, shell, git version, agentic-config version)
+  - Path sanitization and secret detection for privacy and security
+  - Mandatory preview with confirmation before issue creation
+  - Targets MatiasComercio/agentic-config repository
 - Path persistence library (`scripts/lib/path-persistence.sh`) for reliable AGENTIC_CONFIG_PATH persistence
   - `persist_agentic_path`: Writes installation path to multiple locations
   - `discover_agentic_path`: Priority-based discovery algorithm across all locations
