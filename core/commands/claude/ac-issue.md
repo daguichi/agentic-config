@@ -13,10 +13,10 @@ Creates GitHub issues in the central agentic-config repository (MatiasComercio/a
 
 ## Usage
 ```
-/issue                           # Context-based: extract from conversation
-/issue "Title" "Description"     # Explicit: user provides details
-/issue --bug "Title"             # Bug report with template
-/issue --feature "Title"         # Feature request with template
+/ac-issue                           # Context-based: extract from conversation
+/ac-issue "Title" "Description"     # Explicit: user provides details
+/ac-issue --bug "Title"             # Bug report with template
+/ac-issue --feature "Title"         # Feature request with template
 ```
 
 **Target Repository**: `MatiasComercio/agentic-config`
@@ -99,7 +99,7 @@ $ARGUMENTS = "\"Title\" \"Body text\""   -> Explicit, title="Title", body="Body 
    - "Expected...", "but got...", "instead of..."
 
 **If Context Found**:
-- Generate title: Summarize error/issue in <60 chars
+- Generate title: Summarize error/ac-issue in <60 chars
 - Generate description: Include error messages, context, steps observed
 
 **If No Context Found**:
@@ -108,11 +108,11 @@ $ARGUMENTS = "\"Title\" \"Body text\""   -> Explicit, title="Title", body="Body 
   No issue context detected in recent conversation.
 
   Please provide issue details:
-  /issue "Title" "Description"
+  /ac-issue "Title" "Description"
 
   Or specify type:
-  /issue --bug "Brief description of the bug"
-  /issue --feature "Brief description of the feature"
+  /ac-issue --bug "Brief description of the bug"
+  /ac-issue --feature "Brief description of the feature"
   ```
 
 ---
@@ -211,7 +211,7 @@ echo "  agentic-config: $ENV_AGENTIC_VERSION"
 <error messages, stack traces from context>
 
 ---
-Reported via `/issue` command
+Reported via `/ac-issue` command
 ```
 
 **Feature Request Template** (when `--feature` flag used):
@@ -229,7 +229,7 @@ Reported via `/issue` command
 - agentic-config: <ENV_AGENTIC_VERSION>
 
 ---
-Reported via `/issue` command
+Reported via `/ac-issue` command
 ```
 
 **General Template** (explicit or context mode):
@@ -250,7 +250,7 @@ Reported via `/issue` command
 <any other relevant details>
 
 ---
-Reported via `/issue` command
+Reported via `/ac-issue` command
 ```
 
 ---
@@ -317,7 +317,7 @@ if [ $CREATE_STATUS -ne 0 ]; then
   echo "$ISSUE_URL"
   echo ""
   echo "You can try creating the issue manually at:"
-  echo "https://github.com/MatiasComercio/agentic-config/issues/new"
+  echo "https://github.com/MatiasComercio/agentic-config/ac-issues/new"
   exit 1
 fi
 

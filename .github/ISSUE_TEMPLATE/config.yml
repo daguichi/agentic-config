@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Contributing Guidelines
+    url: https://github.com/MatiasComercio/agentic-config/blob/main/.github/CONTRIBUTING.md
+    about: Read the contributing guidelines before submitting an issue
+  - name: Documentation
+    url: https://github.com/MatiasComercio/agentic-config#readme
+    about: Check the README for setup and usage instructions

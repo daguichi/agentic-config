@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2E Tests for /issue command
+# E2E Tests for /ac-issue command
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,16 +12,16 @@ source "$SCRIPT_DIR/test_utils.sh"
 test_issue_command_exists() {
   echo "=== test_issue_command_exists ==="
 
-  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
+  local cmd_file="$REPO_ROOT/core/commands/claude/ac-issue.md"
 
-  assert_file_exists "$cmd_file" "issue.md command file exists"
+  assert_file_exists "$cmd_file" "ac-issue.md command file exists"
 }
 
 # Test: YAML frontmatter is valid
 test_issue_frontmatter_valid() {
   echo "=== test_issue_frontmatter_valid ==="
 
-  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
+  local cmd_file="$REPO_ROOT/core/commands/claude/ac-issue.md"
 
   # Check for required frontmatter fields
   assert_file_contains "$cmd_file" "^---$" "Has YAML frontmatter delimiter"
@@ -36,7 +36,7 @@ test_issue_frontmatter_valid() {
 test_issue_target_repo() {
   echo "=== test_issue_target_repo ==="
 
-  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
+  local cmd_file="$REPO_ROOT/core/commands/claude/ac-issue.md"
 
   assert_file_contains "$cmd_file" "MatiasComercio/agentic-config" "Targets correct repository"
   assert_file_contains "$cmd_file" "gh issue create" "Uses gh issue create"
@@ -46,7 +46,7 @@ test_issue_target_repo() {
 test_issue_auth_verification() {
   echo "=== test_issue_auth_verification ==="
 
-  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
+  local cmd_file="$REPO_ROOT/core/commands/claude/ac-issue.md"
 
   assert_file_contains "$cmd_file" "gh auth status" "Checks gh auth status"
   assert_file_contains "$cmd_file" "gh auth login" "Provides auth login instruction"
@@ -56,7 +56,7 @@ test_issue_auth_verification() {
 test_issue_preview_confirmation() {
   echo "=== test_issue_preview_confirmation ==="
 
-  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
+  local cmd_file="$REPO_ROOT/core/commands/claude/ac-issue.md"
 
   assert_file_contains "$cmd_file" "ISSUE PREVIEW" "Has issue preview section"
   assert_file_contains "$cmd_file" "yes/no" "Has confirmation prompt"
@@ -66,7 +66,7 @@ test_issue_preview_confirmation() {
 test_issue_sanitization() {
   echo "=== test_issue_sanitization ==="
 
-  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
+  local cmd_file="$REPO_ROOT/core/commands/claude/ac-issue.md"
 
   assert_file_contains "$cmd_file" "Sanitization" "Has sanitization section"
   assert_file_contains "$cmd_file" "REDACTED" "Has redaction logic"
@@ -77,7 +77,7 @@ test_issue_sanitization() {
 test_issue_input_modes() {
   echo "=== test_issue_input_modes ==="
 
-  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
+  local cmd_file="$REPO_ROOT/core/commands/claude/ac-issue.md"
 
   assert_file_contains "$cmd_file" "\-\-bug" "Supports --bug flag"
   assert_file_contains "$cmd_file" "\-\-feature" "Supports --feature flag"
@@ -89,7 +89,7 @@ test_issue_input_modes() {
 test_issue_environment_collection() {
   echo "=== test_issue_environment_collection ==="
 
-  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
+  local cmd_file="$REPO_ROOT/core/commands/claude/ac-issue.md"
 
   assert_file_contains "$cmd_file" "uname -s" "Collects OS info"
   assert_file_contains "$cmd_file" "git --version" "Collects git version"
@@ -100,7 +100,7 @@ test_issue_environment_collection() {
 test_issue_error_handling() {
   echo "=== test_issue_error_handling ==="
 
-  local cmd_file="$REPO_ROOT/core/commands/claude/issue.md"
+  local cmd_file="$REPO_ROOT/core/commands/claude/ac-issue.md"
 
   assert_file_contains "$cmd_file" "Error Handling" "Has error handling section"
   assert_file_contains "$cmd_file" "gh not installed" "Handles missing gh CLI"
@@ -118,4 +118,4 @@ test_issue_input_modes
 test_issue_environment_collection
 test_issue_error_handling
 
-print_test_summary "/issue Command E2E Tests"
+print_test_summary "/ac-issue Command E2E Tests"
