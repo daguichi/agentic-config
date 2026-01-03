@@ -30,6 +30,14 @@ Creates GitHub issues in the central agentic-config repository (MatiasComercio/a
 **INSTRUCTION**: Verify GitHub CLI authentication before any other operation.
 
 ```bash
+# Check if gh CLI is installed
+if ! command -v gh &>/dev/null; then
+  echo "ERROR: GitHub CLI (gh) not found"
+  echo ""
+  echo "Please install GitHub CLI: https://cli.github.com/"
+  exit 1
+fi
+
 echo "Checking GitHub CLI authentication..."
 GH_AUTH_OUTPUT=$(gh auth status 2>&1)
 GH_AUTH_STATUS=$?
@@ -317,7 +325,7 @@ if [ $CREATE_STATUS -ne 0 ]; then
   echo "$ISSUE_URL"
   echo ""
   echo "You can try creating the issue manually at:"
-  echo "https://github.com/MatiasComercio/agentic-config/ac-issues/new"
+  echo "https://github.com/MatiasComercio/agentic-config/issues/new"
   exit 1
 fi
 

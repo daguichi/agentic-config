@@ -6,7 +6,7 @@ All notable changes to agentic-config.
 
 ### Added
 
-- `/issue` command for reporting issues to agentic-config repository via GitHub CLI
+- `/ac-issue` command for reporting issues to agentic-config repository via GitHub CLI
   - Context-based mode extracts issue details from conversation (errors, stack traces, unexpected behavior)
   - Explicit mode accepts user-provided title and description
   - Bug and feature templates with `--bug` and `--feature` flags
