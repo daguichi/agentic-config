@@ -107,6 +107,28 @@ test_issue_error_handling() {
   assert_file_contains "$cmd_file" "Network error" "Handles network errors"
 }
 
+# Test: Symlink in .claude/commands is valid
+test_issue_symlink_valid() {
+  echo "=== test_issue_symlink_valid ==="
+
+  local symlink="$REPO_ROOT/.claude/commands/ac-issue.md"
+
+  assert_file_exists "$symlink" "Symlink exists at .claude/commands/ac-issue.md"
+
+  # Verify symlink points to valid target
+  if [ -L "$symlink" ]; then
+    if [ -e "$symlink" ]; then
+      echo "PASS: Symlink target is valid"
+    else
+      echo "FAIL: Symlink exists but target is broken"
+      exit 1
+    fi
+  else
+    echo "FAIL: $symlink is not a symlink"
+    exit 1
+  fi
+}
+
 # Run all tests
 test_issue_command_exists
 test_issue_frontmatter_valid
@@ -117,5 +139,6 @@ test_issue_sanitization
 test_issue_input_modes
 test_issue_environment_collection
 test_issue_error_handling
+test_issue_symlink_valid
 
 print_test_summary "/ac-issue Command E2E Tests"
